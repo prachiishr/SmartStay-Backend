@@ -6,13 +6,10 @@ import {
   verifyKhaltiPayment,
 } from "../../utils/khalti.js";
 
-// Function to initialize payment for a booking
 export const initializePayment = async (req, res) => {
   try {
     const { hostelId, roomName, totalPrice, website_url } = req.body;
-    const userId = req.user ? req.user._id : req.body.userId; // Ensure that we get the userId from the request body or req.user (for logged-in user)
-
-    // Log the received data for debugging
+    const userId = req.user ? req.user._id : req.body.userId;
     console.log("Received request:", {
       hostelId,
       roomName,
@@ -21,7 +18,6 @@ export const initializePayment = async (req, res) => {
       userId,
     });
 
-    // Check if all required fields are present
     if (!hostelId || !roomName || !totalPrice || !website_url || !userId) {
       return res.status(400).send({
         success: false,
@@ -29,7 +25,6 @@ export const initializePayment = async (req, res) => {
       });
     }
 
-    // Fetch the hostel data based on hostelId and roomName
     const hostelData = await Hostel.findOne({
       _id: hostelId,
       "rooms.name": roomName,
@@ -44,7 +39,6 @@ export const initializePayment = async (req, res) => {
 
     console.log("Hostel data found:", hostelData);
 
-    // Find the room data within the hostel
     const roomData = hostelData.rooms.find((room) => room.name === roomName);
 
     if (!roomData) {
@@ -56,20 +50,18 @@ export const initializePayment = async (req, res) => {
 
     console.log("Room data found:", roomData);
 
-    // Create a new room booking record, associating it with the user who is booking
     const roomBookingData = await RoomBooking.create({
       hostelId,
       roomName,
       paymentMethod: "khalti",
-      totalPrice: totalPrice * 100, // Converting total price to the smallest unit (e.g., cents)
-      bookedBy: userId, // Ensure the bookedBy field stores the correct user ID
+      totalPrice: totalPrice * 100,
+      bookedBy: userId,
     });
 
     console.log("Room booking data created:", roomBookingData);
 
-    // Initiate Khalti payment
     const paymentInitiate = await initializeKhaltiPayment({
-      amount: totalPrice * 100, // Amount for Khalti (converted to the smallest unit)
+      amount: totalPrice * 100,
       purchase_order_id: roomBookingData._id,
       purchase_order_name: roomName,
       return_url: `${process.env.BACKEND_URI}/payments/complete-khalti-payment`,
@@ -78,7 +70,6 @@ export const initializePayment = async (req, res) => {
 
     console.log("Khalti payment initiation response:", paymentInitiate);
 
-    // Send response to the frontend with room booking and payment details
     res.json({
       success: true,
       roomBookingData,
@@ -87,7 +78,6 @@ export const initializePayment = async (req, res) => {
   } catch (error) {
     console.error("Error during payment initialization:", error);
 
-    // Return error response if something goes wrong
     res.json({
       success: false,
       error: error.message || "An error occurred",
@@ -95,7 +85,6 @@ export const initializePayment = async (req, res) => {
   }
 };
 
-// Function to complete the payment after Khalti's response
 export const completePayment = async (req, res) => {
   const {
     pidx,
@@ -108,10 +97,8 @@ export const completePayment = async (req, res) => {
   } = req.query;
 
   try {
-    // Verify payment with Khalti
     const paymentInfo = await verifyKhaltiPayment(pidx);
 
-    // Check if the payment was successful and matches the expected data
     if (
       paymentInfo?.status !== "Completed" ||
       paymentInfo.transaction_id !== transaction_id ||
@@ -124,7 +111,6 @@ export const completePayment = async (req, res) => {
       });
     }
 
-    // Fetch the room booking record based on the purchase order ID
     const roomBookingData = await RoomBooking.findById(purchase_order_id);
 
     if (!roomBookingData) {
@@ -134,15 +120,13 @@ export const completePayment = async (req, res) => {
       });
     }
 
-    // Update the booking status to "completed"
     await RoomBooking.findByIdAndUpdate(purchase_order_id, {
       $set: {
         status: "completed",
       },
     });
 
-    // Create a new payment record to store the payment details
-    const paymentData = await Payment.create({
+    await Payment.create({
       pidx,
       transactionId: transaction_id,
       productId: purchase_order_id,
@@ -153,12 +137,7 @@ export const completePayment = async (req, res) => {
       status: "success",
     });
 
-    // Send the response confirming the payment was successful
-    res.json({
-      success: true,
-      message: "Payment Successful",
-      paymentData,
-    });
+    res.redirect(`${process.env.FRONTEND_URI}/success`);
   } catch (error) {
     console.error(error);
     res.status(500).json({

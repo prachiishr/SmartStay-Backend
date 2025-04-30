@@ -11,16 +11,21 @@ import RoomBooking from "../../model/roomBookingModel.js";
 export const userRegistration = async (req, res) => {
   const { name, email, password } = req.body;
 
-  console.log("Request body:", req.body); // Log the request body
+  console.log("Request body:", req.body);
 
   try {
-    if (!name) throw "Please enter your name";
-    if (!email) throw "Please enter your email";
-    if (!password) throw "Please enter your password";
-    if (password.length < 6) throw "password must be 6 characters or more";
+    if (!name) throw new Error("Please enter your name");
+    if (!email) throw new Error("Please enter your email");
+    if (!password) throw new Error("Please enter your password");
+    if (password.length < 6)
+      throw new Error("Password must be 6 characters or more");
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      throw new Error("Please enter a valid email address");
+    }
 
     const encPass = await bcrypt.hash(password, 10);
-
     const verifyToken = generateVerifyToken();
 
     const user = new User({
@@ -35,10 +40,10 @@ export const userRegistration = async (req, res) => {
     generatejwtToken(res, user._id);
     res
       .status(201)
-      .json({ status: "success", message: "User registered successfully" }); // Send a success response
+      .json({ status: "success", message: "User registered successfully" });
   } catch (error) {
     console.log("An error occurred:", error);
-    res.status(400).json({ status: "failed", error: error.message });
+    res.status(400).json({ status: "failed", error: error.message || error });
   }
 };
 
@@ -56,7 +61,6 @@ export const userLogin = async (req, res) => {
 
     if (!comparePass) throw "Invalid password";
 
-    // Include the user ID in the JWT payload
     const getToken = jwt.sign(
       { userId: getUser._id, email: getUser.email, name: getUser.name },
       "secrethai"
@@ -65,8 +69,8 @@ export const userLogin = async (req, res) => {
     res.json({
       status: "success",
       token: getToken,
-      userId: getUser._id, // Send the user ID in the response
-      role: getUser.role, // Send the user role if necessary
+      userId: getUser._id,
+      role: getUser.role,
     });
   } catch (err) {
     console.log("An error occurred:", err);
@@ -123,7 +127,7 @@ export const submitComplaint = async (req, res) => {
 
 export const getBookingsForUser = async (req, res) => {
   try {
-    const { userId } = req.body; // Get userId from request body
+    const { userId } = req.query;
     const bookings = await RoomBooking.find({ bookedBy: userId }).populate(
       "hostelId"
     );
